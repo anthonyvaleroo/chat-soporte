@@ -2,31 +2,151 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+/>
 <title>Chat Cliente</title>
 
 <style>
-      @font-face {
-        font-family: Ubunto;
-        src: url(fonts/Ubuntu-Regular.1cbb1b7.ttf);
-    }
-       @font-face {
-        font-family: UbuntoBold;
-        src: url(fonts/Ubuntu-Medium.e37c554.ttf);
-    }
-html,body{height:100%;margin:0;font-family:Ubunto;background:#f3f4f6}
-.chat{height:100vh;display:flex;flex-direction:column}
-.header{background:#111827;color:white;padding:15px;font-size:18px}
-.messages{flex:1;background:white;padding:15px;overflow-y:auto}
-.msg{max-width:80%;padding:10px;border-radius:12px;margin-bottom:10px}
-.client{background:#2563eb;color:white}
-.admin{background:#ff6a00;margin-left:auto;color: white;}
-.time{font-size:11px;color:#ffffff;text-align:right}
-.typing{font-style:italic;color:#666;margin:5px 15px;display:none}
-.footer{display:flex;gap:6px;padding:10px;background:#111827}
-.footer input{flex:1;padding:10px;border-radius:6px;border:none}
-.footer button{padding:10px;border:none;border-radius:6px;cursor:pointer}
-.msg img{max-width:100%;border-radius:8px}
+@font-face {
+  font-family: Ubuntu;
+  src: url(fonts/Ubuntu-Regular.1cbb1b7.ttf);
+}
+@font-face {
+  font-family: UbuntuBold;
+  src: url(fonts/Ubuntu-Medium.e37c554.ttf);
+}
+
+/* RESET */
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: Ubuntu, Arial, sans-serif;
+  background: #f3f4f6;
+}
+
+/* CONTENEDOR GENERAL */
+.chat {
+  height: 100dvh; /* viewport real móvil */
+  display: flex;
+  flex-direction: column;
+}
+
+/* HEADER */
+.header {
+  background: #111827;
+  color: #fff;
+  padding: 16px;
+  font-size: 18px;
+  font-family: UbuntuBold;
+  text-align: center;
+}
+
+/* MENSAJES */
+.messages {
+  flex: 1;
+  background: #ffffff;
+  padding: 14px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* BURBUJAS */
+.msg {
+  max-width: 85%;
+  padding: 12px 14px;
+  border-radius: 16px;
+  margin-bottom: 10px;
+  font-size: 15px;
+  line-height: 1.4;
+  word-wrap: break-word;
+}
+
+.client {
+  background: #2563eb;
+  color: white;
+  align-self: flex-start;
+}
+
+.admin {
+  background: #ff6a00;
+  color: white;
+  align-self: flex-end;
+}
+
+/* HORA */
+.time {
+  font-size: 11px;
+  opacity: 0.85;
+  margin-top: 4px;
+  text-align: right;
+}
+
+/* IMÁGENES */
+.msg img {
+  max-width: 100%;
+  border-radius: 12px;
+  margin-top: 6px;
+}
+
+/* AGENTE ESCRIBIENDO */
+.typing {
+  font-size: 13px;
+  color: #6b7280;
+  font-style: italic;
+  padding: 6px 14px;
+  display: none;
+}
+
+/* FOOTER */
+.footer {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  background: #111827;
+  align-items: center;
+}
+
+/* INPUT */
+.footer input[type="text"] {
+  flex: 1;
+  padding: 14px;
+  border-radius: 12px;
+  border: none;
+  font-size: 16px; /* evita zoom en iOS */
+}
+
+/* BOTONES */
+.footer button {
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  cursor: pointer;
+  background: #2563eb;
+  color: white;
+}
+
+.footer button.attach {
+  background: #374151;
+}
+
+/* TABLET / DESKTOP */
+@media (min-width: 768px) {
+  .chat {
+    max-width: 480px;
+    margin: auto;
+    height: 95vh;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,.15);
+  }
+}
 </style>
 </head>
 
@@ -34,49 +154,56 @@ html,body{height:100%;margin:0;font-family:Ubunto;background:#f3f4f6}
 
 <div class="chat">
   <div class="header">Soporte en línea Carrefour PASS</div>
+
   <div id="messages" class="messages"></div>
+
   <div id="typing" class="typing">✍️ Agente escribiendo...</div>
 
   <div class="footer">
-    <input id="text" placeholder="Escribe tu mensaje...">
-    <input type="file" id="file" hidden>
-    <button onclick="file.click()">📎</button>
+    <input id="text" type="text" placeholder="Escribe tu mensaje…" />
+    <input type="file" id="file" hidden />
+    <button class="attach" onclick="file.click()">📎</button>
     <button onclick="sendText()">Enviar</button>
   </div>
 </div>
 
 <script>
-const ws = new WebSocket('ws://localhost:8080');
+const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
+const ws = new WebSocket(protocol + location.host);
+
 const messages = document.getElementById('messages');
 const typing = document.getElementById('typing');
 const file = document.getElementById('file');
 
 let history = JSON.parse(sessionStorage.getItem('chat')) || [];
 
-function save(html){
+function save(html) {
   history.push(html);
   sessionStorage.setItem('chat', JSON.stringify(history));
 }
-function render(){
-  messages.innerHTML='';
-  history.forEach(h=>messages.innerHTML+=h);
-  messages.scrollTop=messages.scrollHeight;
+
+function render() {
+  messages.innerHTML = '';
+  history.forEach(h => messages.innerHTML += h);
+  messages.scrollTop = messages.scrollHeight;
 }
 render();
 
-ws.onopen = () => ws.send(JSON.stringify({ type:'login', role:'client' }));
+ws.onopen = () => {
+  ws.send(JSON.stringify({ type: 'login', role: 'client' }));
+};
 
 ws.onmessage = e => {
   const d = JSON.parse(e.data);
 
   if (d.type === 'typing') {
-    typing.style.display='block';
+    typing.style.display = 'block';
     clearTimeout(window.t);
-    window.t=setTimeout(()=>typing.style.display='none',1500);
+    window.t = setTimeout(() => typing.style.display = 'none', 1500);
     return;
   }
 
-  let content = d.type==='file'
+  let content = d.type === 'file'
     ? d.fileType.startsWith('image')
       ? `<img src="${d.fileData}">`
       : `<a href="${d.fileData}" download>${d.fileName}</a>`
@@ -87,40 +214,48 @@ ws.onmessage = e => {
       ${content}
       <div class="time">${d.time}</div>
     </div>`;
-  messages.innerHTML+=html;
+
+  messages.innerHTML += html;
   save(html);
-  messages.scrollTop=messages.scrollHeight;
+  messages.scrollTop = messages.scrollHeight;
 };
 
-function sendText(){
-  const input=document.getElementById('text');
-  if(!input.value) return;
+function sendText() {
+  const input = document.getElementById('text');
+  if (!input.value.trim()) return;
 
-  ws.send(JSON.stringify({ type:'text', message:input.value }));
+  ws.send(JSON.stringify({ type: 'text', message: input.value }));
 
-  const now=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-  const html=`
+  const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const html = `
     <div class="msg client">
       ${input.value}
       <div class="time">${now}</div>
     </div>`;
-  messages.innerHTML+=html;
+
+  messages.innerHTML += html;
   save(html);
-  input.value='';
+
+  input.value = '';
+  messages.scrollTop = messages.scrollHeight;
 }
 
-file.addEventListener('change',e=>{
-  const f=e.target.files[0];
-  const r=new FileReader();
-  r.onload=()=>{
+file.addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+
+  const r = new FileReader();
+  r.onload = () => {
     ws.send(JSON.stringify({
-      type:'file',
-      fileName:f.name,
-      fileType:f.type,
-      fileData:r.result
+      type: 'file',
+      fileName: f.name,
+      fileType: f.type,
+      fileData: r.result
     }));
-    const html=`<div class="msg client">📎 ${f.name}</div>`;
-    messages.innerHTML+=html;
+
+    const html = `<div class="msg client">📎 ${f.name}</div>`;
+    messages.innerHTML += html;
     save(html);
   };
   r.readAsDataURL(f);
