@@ -51,7 +51,9 @@ body{margin:0;font-family:Ubunto;height:100vh;display:flex;background:#f3f4f6}
 </div>
 
 <script>
-const ws=new WebSocket('ws://localhost:8080');
+const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
+const ws = new WebSocket(protocol + location.host);
+
 let current=null;
 let sessions={}, chats={};
 
@@ -137,12 +139,21 @@ document.getElementById('file').addEventListener('change',e=>{
       fileType:f.type,
       fileData:r.result
     }));
-    chats[current].push({ from:'admin', type:'file', fileName:f.name, fileType:f.type, fileData:r.result, time:'ahora' });
+    chats[current].push({
+      from:'admin',
+      type:'file',
+      fileName:f.name,
+      fileType:f.type,
+      fileData:r.result,
+      time:'ahora'
+    });
     renderChat();
   };
   r.readAsDataURL(f);
 });
 </script>
 
+
 </body>
 </html>
+
