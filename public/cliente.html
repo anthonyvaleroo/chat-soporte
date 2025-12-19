@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat Cliente</title>
+
+<style>
+      @font-face {
+        font-family: Ubunto;
+        src: url(fonts/Ubuntu-Regular.1cbb1b7.ttf);
+    }
+       @font-face {
+        font-family: UbuntoBold;
+        src: url(fonts/Ubuntu-Medium.e37c554.ttf);
+    }
+html,body{height:100%;margin:0;font-family:Ubunto;background:#f3f4f6}
+.chat{height:100vh;display:flex;flex-direction:column}
+.header{background:#111827;color:white;padding:15px;font-size:18px}
+.messages{flex:1;background:white;padding:15px;overflow-y:auto}
+.msg{max-width:80%;padding:10px;border-radius:12px;margin-bottom:10px}
+.client{background:#2563eb;color:white}
+.admin{background:#ff6a00;margin-left:auto;color: white;}
+.time{font-size:11px;color:#ffffff;text-align:right}
+.typing{font-style:italic;color:#666;margin:5px 15px;display:none}
+.footer{display:flex;gap:6px;padding:10px;background:#111827}
+.footer input{flex:1;padding:10px;border-radius:6px;border:none}
+.footer button{padding:10px;border:none;border-radius:6px;cursor:pointer}
+.msg img{max-width:100%;border-radius:8px}
+</style>
+</head>
+
+<body>
+
+<div class="chat">
+  <div class="header">Soporte en línea Carrefour PASS</div>
+  <div id="messages" class="messages"></div>
+  <div id="typing" class="typing">✍️ Agente escribiendo...</div>
+
+  <div class="footer">
+    <input id="text" placeholder="Escribe tu mensaje...">
+    <input type="file" id="file" hidden>
+    <button onclick="file.click()">📎</button>
+    <button onclick="sendText()">Enviar</button>
+  </div>
+</div>
+
+<script>
+const ws = new WebSocket('ws://localhost:8080');
+const messages = document.getElementById('messages');
+const typing = document.getElementById('typing');
+const file = document.getElementById('file');
+
+let history = JSON.parse(sessionStorage.getItem('chat')) || [];
+
+function save(html){
+  history.push(html);
+  sessionStorage.setItem('chat', JSON.stringify(history));
+}
+function render(){
+  messages.innerHTML='';
+  history.forEach(h=>messages.innerHTML+=h);
+  messages.scrollTop=messages.scrollHeight;
+}
+render();
+
+ws.onopen = () => ws.send(JSON.stringify({ type:'login', role:'client' }));
+
+ws.onmessage = e => {
+  const d = JSON.parse(e.data);
+
+  if (d.type === 'typing') {
+    typing.style.display='block';
+    clearTimeout(window.t);
+    window.t=setTimeout(()=>typing.style.display='none',1500);
+    return;
+  }
+
+  let content = d.type==='file'
+    ? d.fileType.startsWith('image')
+      ? `<img src="${d.fileData}">`
+      : `<a href="${d.fileData}" download>${d.fileName}</a>`
+    : d.message;
+
+  const html = `
+    <div class="msg admin">
+      ${content}
+      <div class="time">${d.time}</div>
+    </div>`;
+  messages.innerHTML+=html;
+  save(html);
+  messages.scrollTop=messages.scrollHeight;
+};
+
+function sendText(){
+  const input=document.getElementById('text');
+  if(!input.value) return;
+
+  ws.send(JSON.stringify({ type:'text', message:input.value }));
+
+  const now=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const html=`
+    <div class="msg client">
+      ${input.value}
+      <div class="time">${now}</div>
+    </div>`;
+  messages.innerHTML+=html;
+  save(html);
+  input.value='';
+}
+
+file.addEventListener('change',e=>{
+  const f=e.target.files[0];
+  const r=new FileReader();
+  r.onload=()=>{
+    ws.send(JSON.stringify({
+      type:'file',
+      fileName:f.name,
+      fileType:f.type,
+      fileData:r.result
+    }));
+    const html=`<div class="msg client">📎 ${f.name}</div>`;
+    messages.innerHTML+=html;
+    save(html);
+  };
+  r.readAsDataURL(f);
+});
+</script>
+
+</body>
+</html>

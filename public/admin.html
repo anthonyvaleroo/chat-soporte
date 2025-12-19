@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel Admin</title>
+
+<style>
+        @font-face {
+        font-family: Ubunto;
+        src: url(fonts/Ubuntu-Regular.1cbb1b7.ttf);
+    }
+       @font-face {
+        font-family: UbuntoBold;
+        src: url(fonts/Ubuntu-Medium.e37c554.ttf);
+    }
+*{box-sizing:border-box}
+body{margin:0;font-family:Ubunto;height:100vh;display:flex;background:#f3f4f6}
+.sidebar{width:260px;background:#111827;color:white}
+.session{padding:14px;border-bottom:1px solid #1f2937;cursor:pointer;display:flex;justify-content:space-between}
+.session.active{background:#2563eb}
+.badge{background:red;border-radius:12px;padding:2px 8px;font-size:12px}
+.main{flex:1;display:flex;flex-direction:column}
+.header{background:white;padding:16px;font-size:18px;border-bottom:1px solid #e5e7eb}
+.chat{flex:1;background:white;padding:20px;overflow-y:auto}
+.msg{max-width:70%;padding:12px;border-radius:14px;margin-bottom:12px}
+.client{background:#2563eb;color:white}
+.admin{background:#d1fae5;margin-left:auto}
+.time{font-size:11px;color:#555;text-align:right}
+.footer{display:flex;gap:6px;padding:12px;background:#f9fafb;border-top:1px solid #e5e7eb}
+.footer input{flex:1;padding:10px;border-radius:8px;border:1px solid #ccc}
+.footer button{padding:10px 14px;border:none;border-radius:8px;cursor:pointer}
+.msg img{max-width:100%;border-radius:8px}
+</style>
+</head>
+
+<body>
+
+<div class="sidebar" id="sessions"></div>
+
+<div class="main">
+  <div class="header">💬 Panel de Soporte</div>
+  <div id="chat" class="chat"></div>
+
+  <div class="footer">
+    <input id="msg" placeholder="Responder...">
+    <input type="file" id="file" hidden>
+    <button onclick="file.click()">📎</button>
+    <button onclick="send()">Enviar</button>
+  </div>
+</div>
+
+<script>
+const ws=new WebSocket('ws://localhost:8080');
+let current=null;
+let sessions={}, chats={};
+
+ws.onopen=()=>ws.send(JSON.stringify({ type:'login', role:'admin' }));
+
+ws.onmessage=e=>{
+  const d=JSON.parse(e.data);
+
+  if(d.type==='new-session'){
+    sessions[d.clientId]={label:d.label,unread:0};
+    chats[d.clientId]=[];
+    renderSessions();
+    return;
+  }
+
+  chats[d.clientId].push(d);
+  if(current!==d.clientId){
+    sessions[d.clientId].unread++;
+    renderSessions();
+  } else renderChat();
+};
+
+function renderSessions(){
+  const s=document.getElementById('sessions');
+  s.innerHTML='';
+  Object.keys(sessions).forEach(id=>{
+    const ses=sessions[id];
+    s.innerHTML+=`
+      <div class="session ${id===current?'active':''}" onclick="selectSession('${id}')">
+        ${ses.label}
+        ${ses.unread?`<span class="badge">${ses.unread}</span>`:''}
+      </div>`;
+  });
+}
+
+function selectSession(id){
+  current=id;
+  sessions[id].unread=0;
+  renderSessions();
+  renderChat();
+}
+
+function renderChat(){
+  const c=document.getElementById('chat');
+  c.innerHTML='';
+  chats[current].forEach(m=>{
+    let content=m.type==='file'
+      ? m.fileType.startsWith('image')
+        ? `<img src="${m.fileData}">`
+        : `<a href="${m.fileData}" download>${m.fileName}</a>`
+      : m.message;
+
+    c.innerHTML+=`
+      <div class="msg ${m.from}">
+        ${content}
+        <div class="time">${m.time}</div>
+      </div>`;
+  });
+  c.scrollTop=c.scrollHeight;
+}
+
+document.getElementById('msg').addEventListener('input',()=>{
+  if(current) ws.send(JSON.stringify({ type:'typing', clientId:current }));
+});
+
+function send(){
+  if(!current) return;
+  const i=document.getElementById('msg');
+  ws.send(JSON.stringify({ type:'text', message:i.value, clientId:current }));
+  chats[current].push({ from:'admin', message:i.value, time:'ahora' });
+  i.value='';
+  renderChat();
+}
+
+document.getElementById('file').addEventListener('change',e=>{
+  const f=e.target.files[0];
+  const r=new FileReader();
+  r.onload=()=>{
+    ws.send(JSON.stringify({
+      type:'file',
+      clientId:current,
+      fileName:f.name,
+      fileType:f.type,
+      fileData:r.result
+    }));
+    chats[current].push({ from:'admin', type:'file', fileName:f.name, fileType:f.type, fileData:r.result, time:'ahora' });
+    renderChat();
+  };
+  r.readAsDataURL(f);
+});
+</script>
+
+</body>
+</html>
